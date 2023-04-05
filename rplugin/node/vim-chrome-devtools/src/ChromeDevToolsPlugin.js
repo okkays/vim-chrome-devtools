@@ -75,14 +75,14 @@ export default class ChromeDevToolsPlugin {
 
     if (labels.length == 0) {
       echomsg(this._nvim, 'No targets available.');
+    } else if (labels.length == 1) {
+      this.connect(targets[0].id);
     } else {
       await this._nvim.call('fzf#run', {
         down: '40%',
         sink: 'ChromeDevToolsConnect',
         source: labels,
       });
-      // Force focus on fzf.
-      await this._nvim.input('<c-m>');
     }
   };
 
