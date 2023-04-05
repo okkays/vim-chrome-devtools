@@ -122,7 +122,7 @@ export default class ChromeDevToolsPlugin {
     const frameId = frameTree.frame.id;
 
     const { styleSheetId } = await chrome.CSS.createStyleSheet({ frameId });
-    await nvim.command(`edit ${styleSheetId}.css`);
+    await nvim.command(`exec "edit " . system('mktemp --suffix .css')`);
     const buffer = await nvim.buffer;
     await buffer.setVar('ChromeDevTools_styleSheetId', styleSheetId);
   };
