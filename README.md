@@ -13,7 +13,8 @@ More screencasts can be seen [here](https://github.com/carlosrocha/vim-chrome-de
 - [Neovim](https://neovim.io) 0.2.2 for Node.js remote plugin support.
 - [Neovim Node.js provider](https://github.com/neovim/node-client).
 - [Node.js](https://nodejs.org)
-- [FZF (optional)](https://github.com/junegunn/fzf.vim)
+- [FZF](https://github.com/junegunn/fzf.vim)
+- [jq](https://stedolan.github.io/jq/)
 
 Tested on node 8.5.0 and Google Chrome 61.
 
