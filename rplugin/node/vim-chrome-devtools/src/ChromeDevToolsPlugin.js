@@ -5,7 +5,7 @@ import { getVisualSelection, debounce } from './utils';
 import { echomsg, echoerr } from './echo';
 
 import { tmpdir } from 'os';
-import { appendFileSync, writeFileSync } from 'fs';
+import { watch, readFileSync, appendFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 
 export default class ChromeDevToolsPlugin {
@@ -42,6 +42,10 @@ export default class ChromeDevToolsPlugin {
       nargs: '*',
     });
 
+    plugin.registerCommand('FzfEditSink', this.editIgnoringExtraArgs, {
+      nargs: '*',
+    });
+
     plugin.registerAutocmd('TextChanged', this.cssSetStyleSheetText, {
       pattern: '*.css',
     });
@@ -62,12 +66,41 @@ export default class ChromeDevToolsPlugin {
     };
   }
 
+  _decodeBody(result) {
+    if (result.base64Encoded) {
+      return Buffer.from(result.body, "base64").toString("utf-8");
+    }
+    return result.body;
+  }
+
+  async _getAndWriteBody(requestId) {
+    this._chrome.Network.getResponseBody({requestId}).then(result => {
+      appendFileSync(this.networkPreviewFile, this._decodeBody(result));
+      appendFileSync(this.networkPreviewFile, '\n');
+    }, error => {
+      echoerr(this._nvim, error);
+    });
+  }
+
   async _setupNetwork(chrome) {
     const networkDir = tmpdir();
     this.networkRequestFile = networkDir + '/requests.ndjson';
     this.networkResponseFile = networkDir + '/responses.ndjson';
+    this.networkPreviewRequestedFile = networkDir + '/requested-preview.txt';
+    this.networkPreviewFile = networkDir + '/response-body.txt';
+    writeFileSync(this.networkPreviewFile, '');
+    writeFileSync(this.networkPreviewRequestedFile, '');
     writeFileSync(this.networkRequestFile, '');
     writeFileSync(this.networkResponseFile, '');
+
+    watch(this.networkPreviewRequestedFile, (eventType, filename) => {
+      const requestId = readFileSync(this.networkPreviewRequestedFile, 'utf-8');
+      try {
+        this._getAndWriteBody(requestId.trim());
+      } catch (e) {
+        echoerr(this._nvim, String(e));
+      }
+    });
 
     chrome.Network.requestWillBeSent(request => {
       appendFileSync(this.networkRequestFile, JSON.stringify(request) + '\n');
@@ -78,6 +111,11 @@ export default class ChromeDevToolsPlugin {
     });
     await chrome.Network.enable();
   }
+
+  editIgnoringExtraArgs = (args) => {
+    const filename = args.join(' ').split('****')[0].trim();
+    this._nvim.command(`edit ${filename}`);
+  };
 
   listOrConnect = (args) => {
     if (args.length == 0) {
@@ -121,11 +159,13 @@ export default class ChromeDevToolsPlugin {
     const previewCommand = [
       `'${this.pluginDir}/preview-network.sh'`,
       this.networkResponseFile,
+      this.networkPreviewRequestedFile,
+      this.networkPreviewFile,
       '{}',
     ];
 
     const options = await this._nvim.call('fzf#wrap', {
-      sink: 'echomsg',
+      sink: `FzfEditSink ${this.networkPreviewFile} ****`,
       source: `'${this.pluginDir}/source-network.sh' '${this.networkRequestFile}'`,
       options: [
         '--preview', previewCommand.join(' '),
