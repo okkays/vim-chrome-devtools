@@ -26,6 +26,10 @@ export default class ChromeDevToolsPlugin {
       sync: false,
     });
 
+    plugin.registerFunction('ChromeDevTools_navigate', this.navigate, {
+      sync: false,
+    });
+
     plugin.registerFunction(
       'ChromeDevTools_CSS_createStyleSheet',
       this.cssCreateStyleSheet,
@@ -145,6 +149,7 @@ export default class ChromeDevToolsPlugin {
     if (labels.length == 0) {
       echomsg(this._nvim, 'No targets available.');
     } else if (labels.length == 1) {
+      echomsg(this._nvim, `Only one target - connecting to ${labels[1]}`);
       this.connect(targets[0].id);
     } else {
       await this._nvim.call('fzf#run', {
@@ -205,7 +210,31 @@ export default class ChromeDevToolsPlugin {
   };
 
   pageReload = () => {
-    this._chrome.Page.reload();
+    this._chrome.Page.reload({ignoreCache: true});
+  };
+
+  navigate = (args) => {
+    let typedUrl = args[0];
+    this._chrome.Page.getNavigationHistory().then(history => {
+      const base = history.entries[history.currentIndex].url;
+      // Do our best to guess at what the user wants:
+      if (
+        (typedUrl.includes('.') || typedUrl.includes(':')) &&
+        !typedUrl.includes('://')
+      ) {
+        typedUrl = 'http://' + typedUrl;
+      }
+      let url;
+      try {
+        url = new URL(typedUrl, base);
+      } catch (e) {
+        echoerr(this._nvim, e);
+        return;
+      }
+      this._chrome.Page.navigate({url}).then(() => {}, e => {
+        echoerr(this._nvim, e);
+      });
+    });
   };
 
   cssCreateStyleSheet = async () => {
